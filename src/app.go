@@ -7,7 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"docker-agent.app/docker"
+	"docker-agent/docker"
+
 	"github.com/gorilla/mux"
 )
 
