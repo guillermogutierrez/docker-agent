@@ -1,0 +1,53 @@
+
+func list_services(services map[string]Service) {
+	fmt.Println("\nActive deployments")
+	for key, element := range services {
+		fmt.Println("------------------------------------------------------------------------------------------------------------------------")
+		fmt.Println("Deployment name: ", key, fmt.Sprint("\tImage : ", element.Image, "\tRunning : ", element.Instances, " instance(s)"))
+		//fmt.Println("........................................................................................................................")
+		fmt.Println("Container Id\t\t\t\t\t\t\t\tDeployment Status\tDocker Status")
+		fmt.Println("........................................................................................................................")
+		for _, container := range element.Containers {
+
+			dockerContainer := find_container_by_id(container.Id)
+			if dockerContainer.ID != "" {
+				fmt.Println(container.Id, "\t", container.Status, "\t\t", dockerContainer.Status)
+			} else {
+				fmt.Println(container.Id, "\t", " Not found")
+			}
+		}
+	}
+	fmt.Println("------------------------------------------------------------------------------------------------------------------------")
+}
+
+func clenaup(cli *client.Client, ctx context.Context) {
+	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	for _, container := range containers {
+		fmt.Print("Stopping container ", container.ID, "... ")
+		if err := cli.ContainerStop(ctx, container.ID, nil); err != nil {
+			panic(err)
+		}
+		if err := cli.ContainerRemove(ctx, container.ID, types.ContainerRemoveOptions{}); err != nil {
+			panic(err)
+		}
+		fmt.Println("Success")
+	}
+}
+
+func stop_container_manual(containerId string) {
+	fmt.Print("Stopping container ", containerId, "... ")
+
+	if err := cli.ContainerStop(ctx, containerId, nil); err != nil {
+		panic(err)
+	}
+
+	if err := cli.ContainerRemove(ctx, containerId, types.ContainerRemoveOptions{}); err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Success")
+}
