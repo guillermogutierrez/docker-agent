@@ -1,4 +1,4 @@
-module docker-agent.app
+module docker-agent
 
 go 1.16
 
