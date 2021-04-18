@@ -21,7 +21,7 @@ type Container struct {
 	DockerStatus string `json:"Dockerstatus"`
 }
 
-type Service struct {
+type Deployment struct {
 	Name       string               `json:"name"`
 	Image      string               `json:"image"`
 	Instances  int                  `json:"instances"`
@@ -33,7 +33,7 @@ var cli *client.Client
 
 var stopInProgress bool
 
-var services = make(map[string]Service)
+var deployments = make(map[string]Deployment)
 
 func init() {
 	ctx = context.Background()
@@ -41,39 +41,39 @@ func init() {
 	stopInProgress = false
 }
 
-func GetServices() map[string]Service {
-	return services
+func GetDeployments() map[string]Deployment {
+	return deployments
 }
 
-func DeployService(imageName string, serviceName string, instanceCount int) {
-	services[serviceName] = deployService(imageName, serviceName, instanceCount)
+func DeployDeployment(imageName string, deploymentName string, instanceCount int) {
+	deployments[deploymentName] = deployDeployment(imageName, deploymentName, instanceCount)
 }
 
-func GetServicesStatus() map[string]Service {
-	refreshServiceStatus()
-	return GetServices()
+func GetDeploymentsStatus() map[string]Deployment {
+	refreshDeploymentStatus()
+	return GetDeployments()
 }
 
-func UpdateService(serviceName string, instances int) {
-	services[serviceName] = updateService(services[serviceName], instances)
+func UpdateDeployment(deploymentName string, instances int) {
+	deployments[deploymentName] = updateDeployment(deployments[deploymentName], instances)
 }
 
-func StopService(serviceName string) {
-	stopService(services[serviceName])
-	delete(services, serviceName)
+func StopDeployment(deploymentName string) {
+	stopDeployment(deployments[deploymentName])
+	delete(deployments, deploymentName)
 }
 
-func UpdateServicesMonitor(delay time.Duration) {
+func UpdateDeploymentsMonitor(delay time.Duration) {
 	for {
 		time.Sleep(time.Duration(delay * time.Millisecond))
-		updateStatus(services)
+		updateStatus(deployments)
 	}
 }
 
-func refreshServiceStatus() {
+func refreshDeploymentStatus() {
 
-	for _, service := range services {
-		for containerId, container := range service.Containers {
+	for _, deployment := range deployments {
+		for containerId, container := range deployment.Containers {
 
 			dockerContainer := findContainerById(container.Id)
 
@@ -82,7 +82,7 @@ func refreshServiceStatus() {
 			} else {
 				container.DockerStatus = "Not Found"
 			}
-			service.Containers[containerId] = container
+			deployment.Containers[containerId] = container
 		}
 	}
 }
@@ -98,44 +98,46 @@ func findContainerById(containerId string) types.Container {
 	}
 }
 
-func getRandomContainerFromService(containers map[string]Container) string {
+func getRandomContainerFromDeployment(containers map[string]Container) string {
 	keys := reflect.ValueOf(containers).MapKeys()
 	return keys[0].Interface().(string)
 }
 
-func updateService(service Service, instanceCount int) Service {
+func updateDeployment(deployment Deployment, instanceCount int) Deployment {
 
-	fmt.Println(fmt.Sprint("Update service ", service.Name, " from ", service.Instances, " to ", instanceCount, " instances "))
+	fmt.Println(fmt.Sprint("Updating deployment ", deployment.Name, " from ", deployment.Instances, " to ", instanceCount, " instances"))
 
-	pullImage(service.Image)
+	pullImage(deployment.Image)
 
-	for service.Instances > instanceCount {
+	for deployment.Instances > instanceCount {
 
-		containerid := getRandomContainerFromService(service.Containers)
+		containerid := getRandomContainerFromDeployment(deployment.Containers)
 
-		stopContainer(service, service.Containers[containerid])
-		delete(service.Containers, containerid)
-		service.Instances -= 1
+		stopContainer(deployment, deployment.Containers[containerid])
+		delete(deployment.Containers, containerid)
+		deployment.Instances -= 1
 	}
 
-	for service.Instances < instanceCount {
-		service = startContainer(service)
+	for deployment.Instances < instanceCount {
+		deployment = startContainer(deployment)
 	}
 
-	return service
+	fmt.Println(fmt.Sprint("Deployment ", deployment.Name, " updated from ", deployment.Instances, " to ", instanceCount, " instances"))
+
+	return deployment
 }
 
-func deployService(imageName string, serviceName string, instanceCount int) Service {
+func deployDeployment(imageName string, deploymentName string, instanceCount int) Deployment {
 	containersAdded := make(map[string]Container)
 
 	pullImage(imageName)
 
 	for index := 0; index < instanceCount; index++ {
-		var container = deployContainer(imageName, serviceName)
+		var container = deployContainer(imageName, deploymentName)
 		containersAdded[container.Id] = container
 	}
 
-	return Service{serviceName, imageName, instanceCount, containersAdded}
+	return Deployment{deploymentName, imageName, instanceCount, containersAdded}
 }
 
 func pullImage(imageName string) {
@@ -146,18 +148,18 @@ func pullImage(imageName string) {
 	io.Copy(os.Stdout, out)
 }
 
-func generateContainerNameByService(serviceName string) string {
-	return fmt.Sprint(serviceName, "_", time.Now().UnixNano())
+func generateContainerNameByDeployment(deploymentName string) string {
+	return fmt.Sprint(deploymentName, "_", time.Now().UnixNano())
 }
 
-func startContainer(service Service) Service {
+func startContainer(deployment Deployment) Deployment {
 	var labels = make(map[string]string)
-	labels["deployment"] = service.Name
+	labels["deployment"] = deployment.Name
 
-	var container_name = generateContainerNameByService(service.Name)
+	var container_name = generateContainerNameByDeployment(deployment.Name)
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: service.Image, Labels: labels}, nil, nil, nil, container_name)
+		Image: deployment.Image, Labels: labels}, nil, nil, nil, container_name)
 	if err != nil {
 		panic(err)
 	}
@@ -165,18 +167,18 @@ func startContainer(service Service) Service {
 	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
 		panic(err)
 	}
-	service.Instances += 1
+	deployment.Instances += 1
 
-	service.Containers[resp.ID] = Container{resp.ID, container_name, "active", "starting"}
+	deployment.Containers[resp.ID] = Container{resp.ID, container_name, "active", "starting"}
 
-	return service
+	return deployment
 }
 
-func deployContainer(imageName string, serviceName string) Container {
+func deployContainer(imageName string, deploymentName string) Container {
 	var labels = make(map[string]string)
-	labels["deployment"] = serviceName
+	labels["deployment"] = deploymentName
 
-	var container_name = generateContainerNameByService(serviceName)
+	var container_name = generateContainerNameByDeployment(deploymentName)
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image: imageName, Labels: labels}, nil, nil, nil, container_name)
@@ -188,22 +190,21 @@ func deployContainer(imageName string, serviceName string) Container {
 		panic(err)
 	}
 
-	return Container{resp.ID, serviceName, "active", "starting"}
+	return Container{resp.ID, deploymentName, "active", "starting"}
 }
 
-func stopService(service Service) {
-	stopInProgress = true
-	for _, container := range service.Containers {
+func stopDeployment(deployment Deployment) {
+	for _, container := range deployment.Containers {
 		if container.Status == "active" {
-			container = stopContainer(service, container)
-			service.Instances -= 1
+			container = stopContainer(deployment, container)
+			deployment.Instances -= 1
 		}
 	}
-	stopInProgress = false
 }
 
-func stopContainer(service Service, container Container) Container {
-	fmt.Print("Stopping container ", container.Id, "... ")
+func stopContainer(deployment Deployment, container Container) Container {
+	stopInProgress = true
+	fmt.Println("Stopping container ", container.Id, "... ")
 
 	if err := cli.ContainerStop(ctx, container.Id, nil); err != nil {
 		panic(err)
@@ -214,36 +215,39 @@ func stopContainer(service Service, container Container) Container {
 		panic(err)
 	}
 
-	fmt.Println("Success")
+	fmt.Println("Container ", container.Id, " stopped")
+	stopInProgress = false
 	return container
 }
 
-func updateStatus(services map[string]Service) map[string]Service {
+func updateStatus(deployments map[string]Deployment) map[string]Deployment {
 	if !stopInProgress {
-		fmt.Println("\nCheck deployments status")
-		for key, service := range services {
+		fmt.Println("\nDeployments status")
+		for key, deployment := range deployments {
 			fmt.Println("------------------------------------------------------------------------------------------------------------------------")
-			fmt.Println("Deployment name: ", key, fmt.Sprint("\tImage : ", service.Image, "\tRunning : ", service.Instances, " instance(s)"))
+			fmt.Println("Deployment name: ", key, fmt.Sprint("\tImage : ", deployment.Image, "\tRunning : ", deployment.Instances, " instance(s)"))
 			fmt.Println("Container Id\t\t\t\t\t\t\t\tDeployment Status\tDocker Status")
 			fmt.Println("........................................................................................................................")
 
-			for _, container := range service.Containers {
+			for _, container := range deployment.Containers {
 				if container.Status == "active" {
 
 					dockerContainer := findContainerById(container.Id)
 
 					if dockerContainer.ID == "" {
 						fmt.Println(container.Id, "\tDoesn't exist in the docker runtime ")
-						service.Instances -= 1
-						delete(service.Containers, container.Id)
-						service = startContainer(service)
+						deployment.Instances -= 1
+						delete(deployment.Containers, container.Id)
+						deployment = startContainer(deployment)
 					} else {
 						fmt.Println(container.Id, "\t", container.Status, "\t\t", dockerContainer.Status)
 					}
 				}
-				services[key] = service
+				deployments[key] = deployment
 			}
 		}
+	} else {
+		fmt.Println("\nCheck deployments status on hold due to stop container action taking place")
 	}
-	return services
+	return deployments
 }

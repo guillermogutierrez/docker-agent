@@ -12,42 +12,36 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func homePage(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Welcome to the HomePage!")
-	fmt.Println("Endpoint Hit: homePage")
-}
-
 func listDeployments(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Endpoint Hit: listDeployments")
-	json.NewEncoder(w).Encode(docker.GetServicesStatus())
+	fmt.Println("API Call: List Deployments")
+	json.NewEncoder(w).Encode(docker.GetDeploymentsStatus())
 }
 
 func stopDeployment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	serviceName := vars["id"]
-	fmt.Println("Stopping service " + serviceName)
-	docker.StopService(serviceName)
-	fmt.Fprintf(w, "Service stopped")
+	deploymentName := vars["id"]
+	fmt.Println("API Call: Stop the deployment ", deploymentName)
+	docker.StopDeployment(deploymentName)
 }
 
 func createDeployment(w http.ResponseWriter, r *http.Request) {
+	var deployment docker.Deployment
+	err := json.NewDecoder(r.Body).Decode(&deployment)
 
-	var service docker.Service
-	err := json.NewDecoder(r.Body).Decode(&service)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	fmt.Println("New service " + service.Name + " " + service.Image)
-	docker.DeployService(service.Image, service.Name, service.Instances)
-	json.NewEncoder(w).Encode(docker.GetServices())
+	fmt.Println("API Call: Create a new deployment ", deployment.Name, " using the image ", deployment.Image, " and running ", deployment.Instances, " instance(s)")
+	docker.DeployDeployment(deployment.Image, deployment.Name, deployment.Instances)
+	json.NewEncoder(w).Encode(docker.GetDeployments())
 }
 
 func updateDeployment(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
-	serviceId := vars["id"]
+	deploymentId := vars["id"]
 	instances, errParam := strconv.Atoi(vars["instances"])
 
 	if errParam != nil {
@@ -55,15 +49,15 @@ func updateDeployment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("Update service " + serviceId)
-	docker.UpdateService(serviceId, instances)
-	json.NewEncoder(w).Encode(docker.GetServices())
+	fmt.Println("API Call: Update Deployment ", deploymentId, " to ", instances, " instance(s)")
+	docker.UpdateDeployment(deploymentId, instances)
+	json.NewEncoder(w).Encode(docker.GetDeployments())
 }
 
 func handleRequests() {
 
 	myRouter := mux.NewRouter().StrictSlash(true)
-	myRouter.HandleFunc("/", homePage)
+
 	myRouter.HandleFunc("/deployments", listDeployments)
 	myRouter.HandleFunc("/deployment", createDeployment).Methods("POST")
 	myRouter.HandleFunc("/deployment/{id}/{instances}", updateDeployment).Methods("PUT")
@@ -73,6 +67,6 @@ func handleRequests() {
 }
 
 func main() {
-	go docker.UpdateServicesMonitor(10000)
+	go docker.UpdateDeploymentsMonitor(10000)
 	handleRequests()
 }
