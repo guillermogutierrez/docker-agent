@@ -31,11 +31,14 @@ type Service struct {
 var ctx context.Context
 var cli *client.Client
 
+var stopInProgress bool
+
 var services = make(map[string]Service)
 
 func init() {
 	ctx = context.Background()
 	cli, _ = client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	stopInProgress = false
 }
 
 func GetServices() map[string]Service {
@@ -189,12 +192,14 @@ func deployContainer(imageName string, serviceName string) Container {
 }
 
 func stopService(service Service) {
+	stopInProgress = true
 	for _, container := range service.Containers {
 		if container.Status == "active" {
 			container = stopContainer(service, container)
 			service.Instances -= 1
 		}
 	}
+	stopInProgress = false
 }
 
 func stopContainer(service Service, container Container) Container {
@@ -214,28 +219,30 @@ func stopContainer(service Service, container Container) Container {
 }
 
 func updateStatus(services map[string]Service) map[string]Service {
-	fmt.Println("\nCheck deployments status")
-	for key, service := range services {
-		fmt.Println("------------------------------------------------------------------------------------------------------------------------")
-		fmt.Println("Deployment name: ", key, fmt.Sprint("\tImage : ", service.Image, "\tRunning : ", service.Instances, " instance(s)"))
-		fmt.Println("Container Id\t\t\t\t\t\t\t\tDeployment Status\tDocker Status")
-		fmt.Println("........................................................................................................................")
+	if !stopInProgress {
+		fmt.Println("\nCheck deployments status")
+		for key, service := range services {
+			fmt.Println("------------------------------------------------------------------------------------------------------------------------")
+			fmt.Println("Deployment name: ", key, fmt.Sprint("\tImage : ", service.Image, "\tRunning : ", service.Instances, " instance(s)"))
+			fmt.Println("Container Id\t\t\t\t\t\t\t\tDeployment Status\tDocker Status")
+			fmt.Println("........................................................................................................................")
 
-		for _, container := range service.Containers {
-			if container.Status == "active" {
+			for _, container := range service.Containers {
+				if container.Status == "active" {
 
-				dockerContainer := findContainerById(container.Id)
+					dockerContainer := findContainerById(container.Id)
 
-				if dockerContainer.ID == "" {
-					fmt.Println(container.Id, "\tDoesn't exist in the docker runtime ")
-					service.Instances -= 1
-					delete(service.Containers, container.Id)
-					service = startContainer(service)
-				} else {
-					fmt.Println(container.Id, "\t", container.Status, "\t\t", dockerContainer.Status)
+					if dockerContainer.ID == "" {
+						fmt.Println(container.Id, "\tDoesn't exist in the docker runtime ")
+						service.Instances -= 1
+						delete(service.Containers, container.Id)
+						service = startContainer(service)
+					} else {
+						fmt.Println(container.Id, "\t", container.Status, "\t\t", dockerContainer.Status)
+					}
 				}
+				services[key] = service
 			}
-			services[key] = service
 		}
 	}
 	return services

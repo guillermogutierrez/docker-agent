@@ -1,0 +1,133 @@
+{
+	"info": {
+		"_postman_id": "be45d5aa-22f7-4591-83e0-7b79138763a4",
+		"name": "docker-agent",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Deployments",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "localhost:10000/deployments",
+					"host": [
+						"localhost"
+					],
+					"port": "10000",
+					"path": [
+						"deployments"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Stop deployment",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "localhost:10000/deployment/:id",
+					"host": [
+						"localhost"
+					],
+					"port": "10000",
+					"path": [
+						"deployment",
+						":id"
+					],
+					"query": [
+						{
+							"key": "id",
+							"value": "service2",
+							"disabled": true
+						}
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "deployment"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create deployment",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"deployment\",\n    \"image\": \"bfirsh/reticulate-splines\",\n    \"instances\": 4\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "localhost:10000/deployment",
+					"host": [
+						"localhost"
+					],
+					"port": "10000",
+					"path": [
+						"deployment"
+					],
+					"query": [
+						{
+							"key": "Name",
+							"value": "delpoyment",
+							"disabled": true
+						},
+						{
+							"key": "image",
+							"value": "bfirshreticulate-splines",
+							"disabled": true
+						},
+						{
+							"key": "instances",
+							"value": "3",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update deployment",
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"url": {
+					"raw": "localhost:10000/deployment/:id/:instances",
+					"host": [
+						"localhost"
+					],
+					"port": "10000",
+					"path": [
+						"deployment",
+						":id",
+						":instances"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "deployment"
+						},
+						{
+							"key": "instances",
+							"value": "4"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
